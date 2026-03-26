@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: copiloto-vendas-dashboard
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
