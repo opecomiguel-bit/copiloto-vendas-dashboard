@@ -1,1 +1,1 @@
-print("Copiloto de Vendas Dashboard")
+from app_dashboard_render_ready import *
