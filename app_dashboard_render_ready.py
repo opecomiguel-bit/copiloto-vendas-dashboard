@@ -10,6 +10,9 @@ import streamlit as st
 import altair as alt
 import subprocess
 import sys
+import os
+print("DBG DATABASE_URL =", bool((os.getenv("DATABASE_URL") or "").strip()))
+print("DBG USE_DB_TABLES =", os.getenv("USE_DB_TABLES"))
 
 from db_reader import load_artifact_or_empty, use_database_tables
 
