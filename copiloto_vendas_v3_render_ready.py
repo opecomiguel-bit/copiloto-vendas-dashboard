@@ -6,6 +6,9 @@ import os
 import requests
 import sys
 import unicodedata
+import streamlit as st
+st.warning("DEBUG ATIVO - ARQUIVO NOVO CARREGADO")
+print("DEBUG ATIVO - ARQUIVO NOVO CARREGADO")
 from datetime import datetime
 from pathlib import Path
 
