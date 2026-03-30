@@ -18,6 +18,10 @@ TABLE_MAP = {
     "reposicao_geral_acelerando.csv": "dash_reposicao_geral_accel",
 }
 
+LIGHT_FILTER_TABLES = {
+    "dash_base_vendas_render": ('"Data" >= CURRENT_DATE - INTERVAL \'90 days\''),
+}
+
 
 def _with_sslmode_require(db_url: str) -> str:
     try:
@@ -36,10 +40,12 @@ def get_engine():
     db_url = (os.getenv("DATABASE_URL") or "").strip()
     if not db_url:
         raise ValueError("DATABASE_URL não configurada")
+
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
     elif db_url.startswith("postgresql://"):
         db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
     db_url = _with_sslmode_require(db_url)
     return create_engine(db_url, pool_pre_ping=True)
 
@@ -66,7 +72,12 @@ def _safe_table_name(name: str) -> str:
 def load_table(table_name: str) -> pd.DataFrame:
     engine = get_engine()
     safe_name = _safe_table_name(table_name)
-    query = text(f'SELECT * FROM {safe_name}')
+
+    base_sql = f'SELECT * FROM {safe_name}'
+    if safe_name in LIGHT_FILTER_TABLES:
+        base_sql += f" WHERE {LIGHT_FILTER_TABLES[safe_name]}"
+
+    query = text(base_sql)
     with engine.connect() as conn:
         return pd.read_sql(query, conn)
 
