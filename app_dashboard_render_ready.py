@@ -1359,10 +1359,31 @@ load_csv = load_csv_safe
 
 @st.cache_data(show_spinner=True)
 def load_master_parquet(path: str) -> pd.DataFrame:
+    """
+    No modo banco/Render, carrega do banco e reduz o volume inicial para evitar
+    timeout/502 em ambiente free.
+    """
     if use_database_tables():
         remote = load_artifact_or_empty(path)
         if remote is not None and not remote.empty:
-            return remote
+            out = remote.copy()
+            if COL_DATA in out.columns:
+                out[COL_DATA] = pd.to_datetime(out[COL_DATA], errors="coerce")
+                max_dt = out[COL_DATA].max()
+                if pd.notna(max_dt):
+                    cut = max_dt.normalize() - pd.Timedelta(days=90)
+                    reduced = out[out[COL_DATA] >= cut].copy()
+                    if not reduced.empty:
+                        out = reduced
+                out = out.dropna(subset=[COL_DATA]).copy()
+                out = out.sort_values(COL_DATA)
+            if len(out) > 120000:
+                if COL_DATA in out.columns:
+                    out = out.sort_values(COL_DATA).tail(120000).copy()
+                else:
+                    out = out.tail(120000).copy()
+            return out
+        return pd.DataFrame()
     if not file_exists(path):
         return pd.DataFrame()
     return pd.read_parquet(path)
@@ -2231,25 +2252,26 @@ sku_col_master = get_sku_col(master)
 
 master = add_fulfillment_helper_col(master)
 
-daily = pd.DataFrame()
-if file_exists(ARQ_DAILY):
-    daily = load_csv(ARQ_DAILY)
+daily = load_csv(ARQ_DAILY)
+if daily is None:
+    daily = pd.DataFrame()
+if not daily.empty:
     daily = parse_date(daily, COL_DATA).dropna(subset=[COL_DATA]).sort_values(COL_DATA)
     daily = ensure_numeric(daily, ["receita", "pedidos"])
 
-canal_legacy = load_csv(ARQ_CANAL) if file_exists(ARQ_CANAL) else pd.DataFrame()
-abc_legacy = load_csv(ARQ_ABC) if file_exists(ARQ_ABC) else pd.DataFrame()
-alertas = load_csv(ARQ_ALERTAS) if file_exists(ARQ_ALERTAS) else pd.DataFrame()
-alertas_operacionais = load_csv(ARQ_ALERTAS_OPERACIONAIS) if file_exists(ARQ_ALERTAS_OPERACIONAIS) else pd.DataFrame()
+canal_legacy = load_csv(ARQ_CANAL)
+abc_legacy = load_csv(ARQ_ABC)
+alertas = load_csv(ARQ_ALERTAS)
+alertas_operacionais = load_csv(ARQ_ALERTAS_OPERACIONAIS)
 alertas_operacionais = ensure_alertas_operacionais(alertas_operacionais)
-repl_geral = load_csv(ARQ_REPOSICAO_GERAL) if file_exists(ARQ_REPOSICAO_GERAL) else pd.DataFrame()
-repl_geral_accel = load_csv(ARQ_REPOSICAO_GERAL_ACCEL) if file_exists(ARQ_REPOSICAO_GERAL_ACCEL) else pd.DataFrame()
-repl_decisao = load_csv(ARQ_REPOSICAO_DECISAO) if file_exists(ARQ_REPOSICAO_DECISAO) else pd.DataFrame()
-alertas_tracking = load_csv(ARQ_ALERTAS_TRACKING) if file_exists(ARQ_ALERTAS_TRACKING) else pd.DataFrame()
+repl_geral = load_csv(ARQ_REPOSICAO_GERAL)
+repl_geral_accel = load_csv(ARQ_REPOSICAO_GERAL_ACCEL)
+repl_decisao = load_csv(ARQ_REPOSICAO_DECISAO)
+alertas_tracking = load_csv(ARQ_ALERTAS_TRACKING)
 
 resumo = try_read_json(ARQ_RESUMO_JSON) or {}
-full_reposicao_home = ensure_full_columns(load_csv(ARQ_FULL_REPOSICAO)) if file_exists(ARQ_FULL_REPOSICAO) else pd.DataFrame()
-full_candidatos_home = ensure_full_columns(load_csv(ARQ_FULL_CANDIDATOS)) if file_exists(ARQ_FULL_CANDIDATOS) else pd.DataFrame()
+full_reposicao_home = ensure_full_columns(load_csv(ARQ_FULL_REPOSICAO))
+full_candidatos_home = ensure_full_columns(load_csv(ARQ_FULL_CANDIDATOS))
 
 estado_dash_ops = load_dash_ops_estado()
 repl_geral = merge_dash_ops_estado(repl_geral, estado_dash_ops)
